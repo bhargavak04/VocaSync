@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Languages, MessageSquare } from 'lucide-react';
+import { API_URL } from '../config';
 
 interface Message {
   role: 'user' | 'bot';
@@ -33,7 +34,7 @@ const ChatbotPage: React.FC = () => {
   const startConversation = async (purpose: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/chatbot/start', {
+      const response = await fetch(`${API_URL}/api/chatbot/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +76,7 @@ const ChatbotPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chatbot/chat', {
+      const response = await fetch(`${API_URL}/api/chatbot/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

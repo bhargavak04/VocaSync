@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, StopCircle, Play, Volume2, RefreshCw, Copy, Check, MapPin } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 
 // List of languages for the dropdown
 const languages = [
@@ -37,7 +38,7 @@ const TranslatorPage: React.FC = () => {
   useEffect(() => {
     const detectLocation = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/detect-location');
+        const response = await fetch(`${API_URL}/api/detect-location`);
         const data = await response.json();
         
         if (data.suggested_language && data.suggested_language.code !== sourceLang) {
@@ -144,7 +145,7 @@ const TranslatorPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/translate', {
+      const response = await fetch(`${API_URL}/api/translate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,12 +202,14 @@ const TranslatorPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/text-to-speech', {
+      const response = await fetch(`${API_URL}/api/text-to-speech`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         },
+        mode: 'cors',
         body: JSON.stringify({
           text: text,
           language: lang,
@@ -313,74 +316,4 @@ const TranslatorPage: React.FC = () => {
               />
               <button
                 onClick={toggleRecording}
-                className={`absolute bottom-4 right-4 p-2 rounded-full ${
-                  isRecording ? 'bg-red-500' : 'bg-gray-700'
-                } hover:bg-gray-600 transition-colors`}
-              >
-                <Mic className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Translated Text */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Translation</h2>
-              <select
-                value={targetLang}
-                onChange={(e) => setTargetLang(e.target.value)}
-                className="bg-gray-800 text-white rounded-lg px-3 py-1"
-              >
-                {languages.filter(lang => lang.code !== 'auto').map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="relative">
-              <textarea
-                value={translatedText}
-                readOnly
-                className="w-full h-48 bg-gray-800 text-white rounded-lg p-4 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="absolute bottom-4 right-4 flex space-x-2">
-                <button
-                  onClick={handleCopy}
-                  className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
-                >
-                  {isCopied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
-                </button>
-                <button
-                  onClick={() => speakText(translatedText, targetLang)}
-                  className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
-                >
-                  <Volume2 className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400">
-            {error}
-          </div>
-        )}
-
-        {/* Translate Button */}
-        <div className="mt-8 flex justify-center">
-          <button
-            onClick={handleTranslate}
-            className="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-          >
-            Translate
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default TranslatorPage;
+                className={`

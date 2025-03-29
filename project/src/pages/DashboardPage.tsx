@@ -3,6 +3,7 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { Globe, History, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 
 interface DashboardStats {
   translations_today: number;
@@ -53,7 +54,7 @@ const DashboardPage: React.FC = () => {
 
         // Fetch stats
         console.log('Fetching stats with token:', token); // Debug log
-        const statsResponse = await fetch('http://localhost:5000/api/dashboard/stats', {
+        const statsResponse = await fetch(`${API_URL}/api/dashboard/stats`, {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
@@ -74,7 +75,7 @@ const DashboardPage: React.FC = () => {
 
         // Fetch recent translations
         console.log('Fetching translations with token:', token); // Debug log
-        const translationsResponse = await fetch('http://localhost:5000/api/dashboard/recent-translations', {
+        const translationsResponse = await fetch(`${API_URL}/api/dashboard/recent-translations`, {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
@@ -117,7 +118,7 @@ const DashboardPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/dashboard/update-preferences', {
+      const response = await fetch(`${API_URL}/api/dashboard/update-preferences`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -138,7 +139,7 @@ const DashboardPage: React.FC = () => {
       }
       
       // Refresh dashboard data
-      const statsResponse = await fetch('http://localhost:5000/api/dashboard/stats', {
+      const statsResponse = await fetch(`${API_URL}/api/dashboard/stats`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
