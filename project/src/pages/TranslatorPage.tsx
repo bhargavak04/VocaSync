@@ -358,7 +358,7 @@ const TranslatorPage: React.FC = () => {
             Translate
           </button>
           <button
-            onClick={speakText}
+            onClick={() => speakText(translatedText, targetLang)}
             className="bg-indigo-500 text-white rounded-lg px-4 py-2 hover:bg-indigo-600 transition-colors"
           >
             Speak

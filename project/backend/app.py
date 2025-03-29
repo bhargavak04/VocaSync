@@ -425,6 +425,6 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     # Get port from environment variable or use default
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 10000))
     # Run on all interfaces (0.0.0.0) instead of just localhost
     app.run(host='0.0.0.0', port=port, debug=True)
