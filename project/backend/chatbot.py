@@ -6,17 +6,28 @@ from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 from googletrans import Translator
 import random
+import os
 
 load_dotenv()
 
 # Initialize Groq with Llama 3
-llm = ChatGroq(
-    model="llama-3.1-8b-instant",  # Updated to current Groq model name
-    temperature=0.7,  # Slightly higher for more natural conversations
-    max_tokens=1024,
-    timeout=30,
-    max_retries=3,
-)
+try:
+    groq_api_key = os.getenv('GROQ_API_KEY')
+    if not groq_api_key:
+        print("Warning: GROQ_API_KEY not found in environment variables")
+        llm = None
+    else:
+        llm = ChatGroq(
+            model="llama-3.1-8b-instant",
+            temperature=0.7,
+            max_tokens=1024,
+            timeout=30,
+            max_retries=3,
+            groq_api_key=groq_api_key
+        )
+except Exception as e:
+    print(f"Error initializing Groq: {str(e)}")
+    llm = None
 
 # System message template with multilingual support
 system_template = """You are a friendly, patient language learning assistant named LinguaBot. 
@@ -43,13 +54,18 @@ memory = ConversationBufferMemory(
     input_key="input"
 )
 
-# Create conversation chain
-conversation_chain = LLMChain(
-    llm=llm,
-    prompt=prompt,
-    memory=memory,
-    verbose=False  # Set to True if you want to see debugging info
-)
+# Create conversation chain only if llm is available
+conversation_chain = None
+if llm:
+    try:
+        conversation_chain = LLMChain(
+            llm=llm,
+            prompt=prompt,
+            memory=memory,
+            verbose=False
+        )
+    except Exception as e:
+        print(f"Error creating conversation chain: {str(e)}")
 
 chatbot_bp = Blueprint('chatbot', __name__)
 # Initialize translator with service URLs
@@ -99,12 +115,21 @@ def start_conversation():
         data = request.get_json()
         purpose = data.get('purpose', 'general')
         
+        print(f"Starting conversation for purpose: {purpose}")  # Debug log
+        
         # Get recommended language based on purpose
         recommended_languages = LANGUAGE_RECOMMENDATIONS.get(purpose, ['en', 'es', 'fr'])
         recommended_lang = random.choice(recommended_languages)
         
-        # Get language name
-        lang_name = translator.translate('language', dest=recommended_lang).text
+        print(f"Recommended language: {recommended_lang}")  # Debug log
+        
+        try:
+            # Get language name
+            lang_name = translator.translate('language', dest=recommended_lang).text
+            print(f"Translated language name: {lang_name}")  # Debug log
+        except Exception as e:
+            print(f"Translation error: {str(e)}")  # Debug log
+            lang_name = recommended_lang  # Fallback to code if translation fails
         
         # Generate response
         greeting = random.choice(CONVERSATION_TEMPLATES['greeting'])
@@ -116,20 +141,39 @@ def start_conversation():
             language=lang_name
         )
         
-        return jsonify({
+        response = {
             'messages': [
                 {'role': 'bot', 'content': greeting},
                 {'role': 'bot', 'content': purpose_response},
                 {'role': 'bot', 'content': follow_up}
             ],
             'recommended_language': recommended_lang
-        })
+        }
+        
+        print(f"Sending response: {response}")  # Debug log
+        return jsonify(response)
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Chatbot start error: {str(e)}")  # Debug log
+        return jsonify({
+            'error': str(e),
+            'messages': [
+                {'role': 'bot', 'content': 'Sorry, I encountered an error. Please try again.'}
+            ],
+            'recommended_language': 'en'
+        }), 500
 
 @chatbot_bp.route('/api/chatbot/chat', methods=['POST'])
 def chat():
     try:
+        if not conversation_chain:
+            return jsonify({
+                'error': 'Chatbot is not properly initialized. Please check your API keys.',
+                'messages': [
+                    {'role': 'bot', 'content': 'Sorry, the chatbot is currently unavailable. Please try again later.'}
+                ]
+            }), 503
+            
         data = request.get_json()
         user_message = data.get('message', '')
         current_language = data.get('language', 'en')
@@ -145,4 +189,10 @@ def chat():
             ]
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Chat error: {str(e)}")  # Debug log
+        return jsonify({
+            'error': str(e),
+            'messages': [
+                {'role': 'bot', 'content': 'Sorry, I encountered an error. Please try again.'}
+            ]
+        }), 500

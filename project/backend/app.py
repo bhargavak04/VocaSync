@@ -300,6 +300,7 @@ def text_to_speech():
                 return jsonify({'error': 'No text provided'}), 400
                 
             print(f"Received text-to-speech request for language: {language}")  # Debug log
+            print(f"Text length: {len(text)} characters")  # Debug log
                 
             # Map language codes for gTTS
             language_map = {
@@ -329,10 +330,27 @@ def text_to_speech():
                 
                 print(f"Created temporary file: {temp_file_path}")  # Debug log
                 
-                # Generate speech using gTTS
-                tts = gTTS(text=text, lang=tts_lang)
-                tts.save(temp_file_path)
-                print("Successfully generated audio file")  # Debug log
+                # Generate speech using gTTS with retries
+                max_retries = 3
+                retry_delay = 2  # seconds
+                last_error = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        print(f"Attempt {attempt + 1} of {max_retries}")  # Debug log
+                        tts = gTTS(text=text, lang=tts_lang)
+                        tts.save(temp_file_path)
+                        print("Successfully generated audio file")  # Debug log
+                        break
+                    except Exception as e:
+                        last_error = str(e)
+                        print(f"Attempt {attempt + 1} failed: {last_error}")  # Debug log
+                        if attempt < max_retries - 1:  # Don't sleep on last attempt
+                            print(f"Waiting {retry_delay} seconds before retry...")  # Debug log
+                            time.sleep(retry_delay)
+                
+                if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+                    raise Exception("Failed to generate audio file after all retries")
                 
                 # Read the audio file and convert to base64
                 with open(temp_file_path, 'rb') as audio_file:
@@ -345,7 +363,21 @@ def text_to_speech():
                 
             except Exception as e:
                 print(f"Error in text-to-speech processing: {str(e)}")  # Debug log
-                raise e
+                if "429" in str(e) or "Too Many Requests" in str(e):
+                    return jsonify({
+                        'error': 'Text-to-speech service is temporarily unavailable. Please try again in a few moments.',
+                        'details': str(e)
+                    }), 429
+                elif "Connection" in str(e):
+                    return jsonify({
+                        'error': 'Unable to connect to text-to-speech service. Please check your internet connection.',
+                        'details': str(e)
+                    }), 503
+                else:
+                    return jsonify({
+                        'error': 'Failed to generate speech',
+                        'details': str(e)
+                    }), 500
                 
             finally:
                 # Clean up the temporary file
@@ -357,8 +389,11 @@ def text_to_speech():
                         print(f"Error cleaning up temporary file: {str(e)}")  # Debug log
                 
         except Exception as e:
-            print(f"Text-to-speech error: {str(e)}")  # Add logging
-            return jsonify({'error': str(e)}), 500
+            print(f"Text-to-speech error: {str(e)}")  # Debug log
+            return jsonify({
+                'error': 'Internal server error',
+                'details': str(e)
+            }), 500
             
     return handle_text_to_speech()
 
