@@ -301,6 +301,7 @@ def text_to_speech():
                 
             print(f"Received text-to-speech request for language: {language}")  # Debug log
             print(f"Text length: {len(text)} characters")  # Debug log
+            print(f"Text content: {text[:100]}...")  # Debug log (first 100 chars)
                 
             # Map language codes for gTTS
             language_map = {
@@ -323,6 +324,7 @@ def text_to_speech():
                 
             # Create a temporary file to store the audio
             temp_file = None
+            temp_file_path = None
             try:
                 temp_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
                 temp_file_path = temp_file.name
@@ -338,9 +340,38 @@ def text_to_speech():
                 for attempt in range(max_retries):
                     try:
                         print(f"Attempt {attempt + 1} of {max_retries}")  # Debug log
-                        tts = gTTS(text=text, lang=tts_lang)
-                        tts.save(temp_file_path)
+                        
+                        # Split text into chunks if it's too long (gTTS has a limit)
+                        max_chars = 5000
+                        if len(text) > max_chars:
+                            print(f"Text too long ({len(text)} chars), splitting into chunks")  # Debug log
+                            chunks = [text[i:i+max_chars] for i in range(0, len(text), max_chars)]
+                            print(f"Split into {len(chunks)} chunks")  # Debug log
+                            
+                            # Generate audio for each chunk and combine
+                            combined_audio = []
+                            for i, chunk in enumerate(chunks):
+                                print(f"Processing chunk {i+1}/{len(chunks)}")  # Debug log
+                                chunk_tts = gTTS(text=chunk, lang=tts_lang)
+                                chunk_file = f"{temp_file_path}.chunk{i}"
+                                chunk_tts.save(chunk_file)
+                                
+                                with open(chunk_file, 'rb') as f:
+                                    combined_audio.append(f.read())
+                                
+                                # Clean up chunk file
+                                os.unlink(chunk_file)
+                            
+                            # Combine all chunks and save to final file
+                            with open(temp_file_path, 'wb') as f:
+                                for audio_chunk in combined_audio:
+                                    f.write(audio_chunk)
+                        else:
+                            tts = gTTS(text=text, lang=tts_lang)
+                            tts.save(temp_file_path)
+                        
                         print("Successfully generated audio file")  # Debug log
+                        print(f"File size: {os.path.getsize(temp_file_path)} bytes")  # Debug log
                         break
                     except Exception as e:
                         last_error = str(e)
@@ -350,7 +381,7 @@ def text_to_speech():
                             time.sleep(retry_delay)
                 
                 if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
-                    raise Exception("Failed to generate audio file after all retries")
+                    raise Exception(f"Failed to generate audio file after all retries. Last error: {last_error}")
                 
                 # Read the audio file and convert to base64
                 with open(temp_file_path, 'rb') as audio_file:
@@ -373,6 +404,11 @@ def text_to_speech():
                         'error': 'Unable to connect to text-to-speech service. Please check your internet connection.',
                         'details': str(e)
                     }), 503
+                elif "Invalid language code" in str(e):
+                    return jsonify({
+                        'error': 'Unsupported language for text-to-speech.',
+                        'details': str(e)
+                    }), 400
                 else:
                     return jsonify({
                         'error': 'Failed to generate speech',
@@ -381,7 +417,7 @@ def text_to_speech():
                 
             finally:
                 # Clean up the temporary file
-                if temp_file and os.path.exists(temp_file_path):
+                if temp_file_path and os.path.exists(temp_file_path):
                     try:
                         os.unlink(temp_file_path)
                         print("Cleaned up temporary file")  # Debug log
