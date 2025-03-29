@@ -24,19 +24,19 @@ const ContactPage: React.FC = () => {
     {
       icon: <Mail className="h-6 w-6" />,
       title: 'Email',
-      content: 'support@projectbolt.com',
-      link: 'mailto:support@projectbolt.com',
+      content: 'bhargavkumar709@gmail.com',
+      link: 'mailto:bhargavkumar709@gmail.com',
     },
     {
       icon: <Phone className="h-6 w-6" />,
       title: 'Phone',
-      content: '+1 (555) 123-4567',
+      content: '+91 9908166188',
       link: 'tel:+15551234567',
     },
     {
       icon: <MapPin className="h-6 w-6" />,
       title: 'Location',
-      content: 'San Francisco, CA',
+      content: 'Ganpat University, Gujarat, India',
       link: 'https://maps.google.com',
     },
   ];

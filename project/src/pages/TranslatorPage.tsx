@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, StopCircle, Play, Volume2, RefreshCw, Copy, Check, MapPin } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
+import { useNavigate } from 'react-router-dom';
 
 // List of languages for the dropdown
 const languages = [
@@ -11,12 +13,14 @@ const languages = [
   { code: 'it', name: 'Italian' },
   { code: 'pt', name: 'Portuguese' },
   { code: 'ru', name: 'Russian' },
-  { code: 'zh', name: 'Chinese' },
+  { code: 'zh-CN', name: 'Chinese (Simplified)' },
   { code: 'ja', name: 'Japanese' },
   { code: 'ko', name: 'Korean' },
 ];
 
 const TranslatorPage: React.FC = () => {
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
   const [isRecording, setIsRecording] = useState(false);
   const [sourceText, setSourceText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
@@ -70,11 +74,35 @@ const TranslatorPage: React.FC = () => {
       };
       
       recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
+        console.error('Speech recognition error:', event.error);
         setIsRecording(false);
+        setError(`Speech recognition error: ${event.error}`);
+        
+        // Attempt to restart recognition if it's a network error
+        if (event.error === 'network') {
+          setTimeout(() => {
+            if (isRecording) {
+              try {
+                recognitionRef.current?.start();
+              } catch (error) {
+                console.error('Failed to restart speech recognition:', error);
+              }
+            }
+          }, 1000);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        if (isRecording) {
+          try {
+            recognitionRef.current?.start();
+          } catch (error) {
+            console.error('Failed to restart speech recognition:', error);
+          }
+        }
       };
     } else {
-      alert('Speech recognition is not supported in your browser. Please try Chrome or Edge.');
+      setError('Speech recognition is not supported in your browser. Please try Chrome or Edge.');
     }
     
     return () => {
@@ -82,7 +110,7 @@ const TranslatorPage: React.FC = () => {
         recognitionRef.current.stop();
       }
     };
-  }, []);
+  }, [isRecording]);
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -107,11 +135,23 @@ const TranslatorPage: React.FC = () => {
     try {
       setError('');
       setIsTranslating(true);
+
+      // Get the session token from Clerk
+      const token = await getToken();
+      if (!token) {
+        setError('Not authenticated');
+        navigate('/login');
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/translate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         },
+        mode: 'cors',
         body: JSON.stringify({
           text: sourceText,
           source_lang: sourceLang,
@@ -120,30 +160,52 @@ const TranslatorPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Translation failed');
+        if (response.status === 401) {
+          navigate('/login');
+          return;
+        }
+        const data = await response.json();
+        throw new Error(data.error || 'Translation failed');
       }
 
       const data = await response.json();
       
-      if (data.error) {
-        throw new Error(data.error);
+      if (!data.translated_text) {
+        throw new Error('No translation received');
       }
       
       setTranslatedText(data.translated_text);
     } catch (err) {
-      setError('Translation failed. Please try again.');
       console.error('Translation error:', err);
+      setError(err instanceof Error ? err.message : 'Translation failed. Please try again.');
     } finally {
       setIsTranslating(false);
     }
   };
 
   const speakText = async (text: string, lang: string) => {
+    if (!text.trim()) {
+      setError('No text to speak');
+      return;
+    }
+
     try {
+      setError('');
+      console.log(`Sending text-to-speech request for language: ${lang}`); // Debug log
+      
+      // Get the session token from Clerk
+      const token = await getToken();
+      if (!token) {
+        setError('Not authenticated');
+        navigate('/login');
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           text: text,
@@ -151,18 +213,57 @@ const TranslatorPage: React.FC = () => {
         }),
       });
 
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
+      if (!response.ok) {
+        if (response.status === 401) {
+          navigate('/login');
+          return;
+        }
+        const data = await response.json();
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
       }
 
-      // Create and play audio from base64 data
-      const audio = new Audio(`data:audio/mp3;base64,${data.audio_data}`);
-      audio.play();
+      const data = await response.json();
+
+      if (!data.audio_data) {
+        throw new Error('No audio data received');
+      }
+
+      console.log('Received audio data, creating blob...'); // Debug log
+      
+      // Create a blob from the base64 data
+      const byteCharacters = atob(data.audio_data);
+      const byteNumbers = new Array(byteCharacters.length);
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'audio/mp3' });
+      
+      console.log('Created blob, creating audio element...'); // Debug log
+      
+      // Create and play audio from blob
+      const audio = new Audio(URL.createObjectURL(blob));
+      
+      // Add error handling for audio playback
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        setError('Failed to play audio. Please try again.');
+      };
+
+      // Clean up the object URL after the audio is done playing
+      audio.onended = () => {
+        URL.revokeObjectURL(audio.src);
+      };
+
+      console.log('Starting audio playback...'); // Debug log
+      await audio.play();
+      console.log('Audio playback started'); // Debug log
+      
     } catch (error) {
       console.error('Text-to-speech error:', error);
-      alert('Error playing audio. Please try again.');
+      setError(`Text-to-speech error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -250,7 +351,10 @@ const TranslatorPage: React.FC = () => {
                 >
                   {isCopied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
                 </button>
-                <button className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors">
+                <button
+                  onClick={() => speakText(translatedText, targetLang)}
+                  className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
+                >
                   <Volume2 className="h-5 w-5" />
                 </button>
               </div>
