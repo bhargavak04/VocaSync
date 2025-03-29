@@ -316,4 +316,69 @@ const TranslatorPage: React.FC = () => {
               />
               <button
                 onClick={toggleRecording}
-                className={`
+                className={`absolute bottom-4 right-4 p-2 rounded-full ${
+                  isRecording ? 'bg-red-500' : 'bg-gray-700'
+                } hover:bg-gray-600 transition-colors`}
+              >
+                {isRecording ? <StopCircle size={20} /> : <Mic size={20} />}
+              </button>
+            </div>
+          </div>
+          {/* Translated Text */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Translated Text</h2>
+              <select
+                value={targetLang}
+                onChange={(e) => setTargetLang(e.target.value)}
+                className="bg-gray-800 text-white rounded-lg px-3 py-1"
+              >
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <textarea
+                value={translatedText}
+                onChange={(e) => setTranslatedText(e.target.value)}
+                placeholder="Translation will appear here..."
+                className="w-full h-48 bg-gray-800 text-white rounded-lg p-4 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mt-8 space-x-4">
+          <button
+            onClick={handleTranslate}
+            className="bg-indigo-500 text-white rounded-lg px-4 py-2 hover:bg-indigo-600 transition-colors"
+          >
+            Translate
+          </button>
+          <button
+            onClick={speakText}
+            className="bg-indigo-500 text-white rounded-lg px-4 py-2 hover:bg-indigo-600 transition-colors"
+          >
+            Speak
+          </button>
+          <button
+            onClick={handleCopy}
+            className="bg-indigo-500 text-white rounded-lg px-4 py-2 hover:bg-indigo-600 transition-colors"
+          >
+            {isCopied ? <Check size={20} /> : <Copy size={20} />}
+          </button>
+          <button
+            onClick={swapLanguages}
+            className="bg-indigo-500 text-white rounded-lg px-4 py-2 hover:bg-indigo-600 transition-colors"
+          >
+            Swap Languages
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TranslatorPage;
